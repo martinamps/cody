@@ -15,7 +15,6 @@ type NewAuthStatusOptions = { endpoint: string } & (
           | 'displayName'
           | 'avatarURL'
           | 'userCanUpgrade'
-          | 'isOfflineMode'
       > & {
           userOrganizations?: CurrentUserInfo['organizations']
           primaryEmail?:
@@ -32,18 +31,7 @@ export function newAuthStatus(options: NewAuthStatusOptions): AuthStatus {
         return { authenticated: false, endpoint: options.endpoint, showInvalidAccessTokenError: true }
     }
 
-    const { isOfflineMode, username, endpoint, siteVersion, userOrganizations } = options
-
-    if (isOfflineMode) {
-        return {
-            authenticated: true,
-            endpoint,
-            username,
-            codyApiVersion: 0,
-            siteVersion: 'offline',
-            isOfflineMode: true,
-        }
-    }
+    const { endpoint, siteVersion, userOrganizations } = options
 
     const isDotCom_ = isDotCom(endpoint)
     const primaryEmail =

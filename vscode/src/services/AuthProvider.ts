@@ -60,25 +60,12 @@ export class AuthProvider implements vscode.Disposable {
         config: Pick<
             ClientConfigurationWithAccessToken,
             'serverEndpoint' | 'accessToken' | 'customHeaders'
-        >,
-        isOfflineMode?: boolean
+        >
     ): Promise<AuthStatus> {
         const endpoint = config.serverEndpoint
         const token = config.accessToken
         const isCodyWeb =
             vscode.workspace.getConfiguration().get<string>('cody.advanced.agent.ide') === CodyIDE.Web
-
-        if (isOfflineMode) {
-            const lastUser = localStorage.getLastStoredUser()
-            return {
-                endpoint: lastUser?.endpoint ?? 'https://offline.sourcegraph.com',
-                username: lastUser?.username ?? 'offline-user',
-                authenticated: true,
-                isOfflineMode: true,
-                codyApiVersion: 0,
-                siteVersion: '',
-            }
-        }
 
         // Cody Web can work without access token since authorization flow
         // relies on cookie authentication
@@ -158,13 +145,11 @@ export class AuthProvider implements vscode.Disposable {
         token,
         customHeaders,
         isExtensionStartup = false,
-        isOfflineMode = false,
     }: {
         endpoint: string
         token: string | null
         customHeaders?: Record<string, string> | null
         isExtensionStartup?: boolean
-        isOfflineMode?: boolean
     }): Promise<AuthStatus> {
         const formattedEndpoint = formatURL(endpoint)
         if (!formattedEndpoint) {
@@ -179,11 +164,9 @@ export class AuthProvider implements vscode.Disposable {
         }
 
         try {
-            const authStatus = await this.makeAuthStatus(config, isOfflineMode)
+            const authStatus = await this.makeAuthStatus(config)
 
-            if (!isOfflineMode) {
-                await this.storeAuthInfo(config.serverEndpoint, config.accessToken)
-            }
+            await this.storeAuthInfo(config.serverEndpoint, config.accessToken)
 
             await vscode.commands.executeCommand(
                 'setContext',

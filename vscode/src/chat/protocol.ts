@@ -146,7 +146,7 @@ export type WebviewMessage =
       }
     | {
           command: 'auth'
-          authKind: 'signin' | 'signout' | 'support' | 'callback' | 'simplified-onboarding' | 'offline'
+          authKind: 'signin' | 'signout' | 'support' | 'callback' | 'simplified-onboarding'
           endpoint?: string | undefined | null
           value?: string | undefined | null
           authMethod?: AuthMethod | undefined | null
@@ -171,9 +171,6 @@ export type WebviewMessage =
     | {
           command: 'attribution-search'
           snippet: string
-      }
-    | {
-          command: 'troubleshoot/reloadAuth'
       }
     | { command: 'rpc/request'; message: RequestMessage }
 
