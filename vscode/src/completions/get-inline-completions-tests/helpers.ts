@@ -411,6 +411,7 @@ export type V = Awaited<ReturnType<typeof getInlineCompletions>>
 
 export function initCompletionProviderConfig(config: Partial<ClientConfiguration>) {
     graphqlClient.setConfig({} as unknown as GraphQLAPIClientConfig)
+    console.log('qwe')
     vi.spyOn(featureFlagProvider.instance!, 'getFromCache').mockReturnValue(false)
     return completionProviderConfig.init(config as ClientConfiguration)
 }

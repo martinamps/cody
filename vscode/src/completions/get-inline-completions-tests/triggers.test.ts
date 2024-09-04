@@ -1,8 +1,8 @@
 import dedent from 'dedent'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { CompletionParameters } from '@sourcegraph/cody-shared'
-
+import type { CompletionParameters, FeatureFlagProvider } from '@sourcegraph/cody-shared'
+import { FeatureFlag, featureFlagProvider } from '@sourcegraph/cody-shared'
 import { range } from '../../testutils/textDocument'
 import { InlineCompletionsResultSource } from '../get-inline-completions'
 import { completion } from '../test-helpers'
@@ -11,6 +11,28 @@ import { type V, getInlineCompletions, params } from './helpers'
 
 describe('[getInlineCompletions] triggers', () => {
     describe('singleline', () => {
+        const enabledFeatureFlags = new Set<FeatureFlag>()
+        let originalFeatureFlagProviderInstance: FeatureFlagProvider | null
+
+        beforeEach(() => {
+            originalFeatureFlagProviderInstance = featureFlagProvider.instance
+            enabledFeatureFlags.clear()
+            enabledFeatureFlags.add(FeatureFlag.CodyInLineSuffixAutocomplete)
+            featureFlagProvider.instance = {
+                evaluateFeatureFlag: (flag: FeatureFlag) =>
+                    Promise.resolve(enabledFeatureFlags.has(flag)),
+                refresh: () => {},
+                getFromCache: (flagName: FeatureFlag) => {
+                    return false
+                },
+            } as FeatureFlagProvider
+        })
+
+        afterEach(() => {
+            vi.restoreAllMocks()
+            featureFlagProvider.instance = originalFeatureFlagProviderInstance
+        })
+
         it('after whitespace', async () =>
             expect(await getInlineCompletions(params('foo = █', [completion`bar`]))).toEqual<V>({
                 items: [{ insertText: 'bar' }],
@@ -39,6 +61,11 @@ describe('[getInlineCompletions] triggers', () => {
         describe('same line suffix behavior', () => {
             it('does not trigger when there are alphanumeric chars in the line suffix', async () =>
                 expect(await getInlineCompletions(params('foo = █ // x', []))).toBeNull())
+
+            it('will not trigger when there are alphanumeric chars in the line suffix', async () => {
+                enabledFeatureFlags.delete(FeatureFlag.CodyInLineSuffixAutocomplete)
+                expect(await getInlineCompletions(params('foo = █ // x', []))).not.toBeNull()
+            })
 
             it('triggers when there are only non-alphanumeric chars in the line suffix', async () =>
                 expect(await getInlineCompletions(params('foo = █;', []))).toBeTruthy())
