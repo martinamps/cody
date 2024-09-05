@@ -415,7 +415,7 @@ export class InlineCompletionItemProvider
                 ),
             }
 
-            const artificialDelay = getArtificialDelay(
+            const artificialDelay = await getArtificialDelay(
                 latencyFeatureFlags,
                 document.uri.toString(),
                 document.languageId,
