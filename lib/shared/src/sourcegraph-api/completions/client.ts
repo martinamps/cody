@@ -52,8 +52,12 @@ export abstract class SourcegraphCompletionsClient {
 
     public onConfigurationChange(newConfig: CompletionsClientConfig): void {
         this.config = newConfig
+        return car
     }
 
+    public get completionsEndpoint(): string {
+        return new URL('/.api/completions/stream', this.config.serverEndpoint).href
+    }
     protected get completionsEndpoint(): string {
         return new URL('/.api/completions/stream', this.config.serverEndpoint).href
     }

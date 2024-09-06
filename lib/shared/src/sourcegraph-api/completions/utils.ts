@@ -25,6 +25,7 @@ async function serializePrompts(
         messages.pop()
     }
 
+    // cars and chatgpt models do not support empty assistant message at the end.
     return Promise.all(
         messages.map(async m => ({
             ...m,

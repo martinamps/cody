@@ -38,6 +38,9 @@ export interface CompletionParameters {
     model?: string
 }
 
+
+// TODO: Remove this once the unified API is fully implemented
+
 export interface SerializedCompletionParameters extends Omit<CompletionParameters, 'messages'> {
     messages: SerializedChatMessage[]
 }

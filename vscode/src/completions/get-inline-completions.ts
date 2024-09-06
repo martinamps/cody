@@ -504,7 +504,12 @@ async function doGetInlineCompletions(
         isPreloadRequest: triggerKind === TriggerKind.Preload,
         tracer: tracer ? createCompletionProviderTracer(tracer) : undefined,
     })
-
+    // console llog if result.completions has something
+    if (result.completions.length > 0) {
+        console.log(
+            `[autocomplete] result.completions: ${JSON.stringify(result.completions, null, 2)}`
+        )
+    }
     return processRequestManagerResult({
         result,
         logId,
@@ -614,13 +619,16 @@ export function shouldCancelBasedOnCurrentLine(params: ShouldCancelBasedOnCurren
     const { currentLinePrefix, currentLineSuffix, position, document, codyInLineSuffixAutocomplete } =
         params
 
+    if (codyInLineSuffixAutocomplete || 1) {
+        return false
+    }
     // If we have a suffix in the same line as the cursor and the suffix contains any word
     // characters, do not attempt to make a completion. This means we only make completions if
     // we have a suffix in the same line for special characters like `)]}` etc.
     //
     // VS Code will attempt to merge the remainder of the current line by characters but for
     // words this will easily get very confusing.
-    if (codyInLineSuffixAutocomplete && /\w/.test(currentLineSuffix)) {
+    if (/\w/.test(currentLineSuffix)) {
         return true
     }
 
