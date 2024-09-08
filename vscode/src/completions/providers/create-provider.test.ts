@@ -1,29 +1,37 @@
 import {
     AUTH_STATUS_FIXTURE_AUTHED,
+    type AuthStatus,
     type AuthenticatedAuthStatus,
     type ClientConfiguration,
-    type ClientConfigurationWithAccessToken,
+    type ClientState,
     type CodyLLMSiteConfiguration,
     DOTCOM_URL,
-    type GraphQLAPIClientConfig,
     type ObservableValue,
+    type ResolvedConfiguration,
     firstValueFrom,
     graphqlClient,
+    mockResolvedConfig,
 } from '@sourcegraph/cody-shared'
 import { beforeAll, describe, expect, it } from 'vitest'
 import type * as vscode from 'vscode'
 import { localStorage } from '../../services/LocalStorageProvider'
 import { DEFAULT_VSCODE_SETTINGS } from '../../testutils/mocks'
 
+import { Observable } from 'observable-fns'
 import { createProvider } from './create-provider'
 
 const getVSCodeConfigurationWithAccessToken = (
     config: Partial<ClientConfiguration> = {}
-): ClientConfigurationWithAccessToken => ({
-    ...DEFAULT_VSCODE_SETTINGS,
-    ...config,
-    serverEndpoint: 'https://example.com',
-    accessToken: 'foobar',
+): ResolvedConfiguration => ({
+    configuration: {
+        ...DEFAULT_VSCODE_SETTINGS,
+        ...config,
+    },
+    auth: {
+        serverEndpoint: 'https://example.com',
+        accessToken: 'foobar',
+    },
+    clientState: {} satisfies Partial<ClientState> as any,
 })
 
 const dummyAuthStatus: AuthenticatedAuthStatus = {
@@ -35,7 +43,9 @@ const dummyAuthStatus: AuthenticatedAuthStatus = {
     },
 }
 
-graphqlClient.setConfig({} as unknown as GraphQLAPIClientConfig)
+graphqlClient.setResolvedConfigurationObservable(
+    Observable.of({ auth: { accessToken: null, serverEndpoint: '' } })
+)
 
 describe('createProvider', () => {
     beforeAll(async () => {
@@ -46,9 +56,12 @@ describe('createProvider', () => {
     })
 
     function createProviderForTest(
-        ...args: Parameters<typeof createProvider>
+        config: ResolvedConfiguration,
+        authStatus: AuthStatus
     ): Promise<ObservableValue<ReturnType<typeof createProvider>>> {
-        return firstValueFrom(createProvider(...args))
+        mockResolvedConfig(config)
+        // TODO!(sqs): also mock authStatus
+        return firstValueFrom(createProvider())
     }
 
     describe('if completions provider fields are defined in VSCode settings', () => {

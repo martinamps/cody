@@ -2,15 +2,16 @@ import {
     type AutocompleteContextSnippet,
     type CodeCompletionsParams,
     type CompletionResponseGenerator,
+    currentAuthStatusAuthed,
+    currentResolvedConfig,
     dotcomTokenToGatewayToken,
     isDotCom,
     tokensToChars,
 } from '@sourcegraph/cody-shared'
-import { forkSignal, generatorWithTimeout, zipGenerators } from '../utils'
-
 import { defaultCodeCompletionsClient } from '../default-client'
 import { createFastPathClient } from '../fast-path-client'
 import { TriggerKind } from '../get-inline-completions'
+import { forkSignal, generatorWithTimeout, zipGenerators } from '../utils'
 import {
     type FetchCompletionResult,
     fetchAndProcessDynamicMultilineCompletions,
@@ -209,12 +210,13 @@ class FireworksProvider extends Provider {
         ].includes(this.legacyModel)
     }
 
-    private createClient(
+    private async createClient(
         options: GenerateCompletionsOptions,
         requestParams: CodeCompletionsParams,
         abortController: AbortController
-    ): CompletionResponseGenerator {
-        const { authStatus, config } = options
+    ): Promise<CompletionResponseGenerator> {
+        const authStatus = currentAuthStatusAuthed()
+        const { configuration: config, auth } = await currentResolvedConfig()
 
         const isLocalInstance = Boolean(
             authStatus.endpoint?.includes('sourcegraph.test') ||
@@ -223,13 +225,13 @@ class FireworksProvider extends Provider {
 
         const isNode = typeof process !== 'undefined'
         let fastPathAccessToken =
-            config.accessToken &&
+            auth.accessToken &&
             // Require the upstream to be dotcom
             (isDotCom(authStatus) || isLocalInstance) &&
             process.env.CODY_DISABLE_FASTPATH !== 'true' && // Used for testing
             // The fast path client only supports Node.js style response streams
             isNode
-                ? dotcomTokenToGatewayToken(config.accessToken)
+                ? dotcomTokenToGatewayToken(auth.accessToken)
                 : undefined
 
         if (fastPathAccessToken) {
@@ -250,7 +252,6 @@ class FireworksProvider extends Provider {
                 providerOptions: options,
                 fastPathAccessToken,
                 customHeaders: this.getCustomHeaders(authStatus.isFireworksTracingEnabled),
-                authStatus: authStatus,
                 anonymousUserID: this.anonymousUserID,
             })
         }
@@ -273,10 +274,8 @@ function getClientModel(isDotCom: boolean, model?: string): FireworksModel {
     throw new Error(`Unknown model: \`${model}\``)
 }
 
-export function createProvider(params: ProviderFactoryParams): Provider {
-    const { legacyModel, authStatus, anonymousUserID } = params
-
-    const clientModel = getClientModel(isDotCom(authStatus), legacyModel)
+export function createProvider({ legacyModel, anonymousUserID }: ProviderFactoryParams): Provider {
+    const clientModel = getClientModel(isDotCom(currentAuthStatusAuthed()), legacyModel)
 
     return new FireworksProvider({
         id: 'fireworks',

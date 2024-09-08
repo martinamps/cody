@@ -32,6 +32,7 @@ import {
     createMessageAPIForExtension,
     currentAuthStatus,
     currentAuthStatusAuthed,
+    currentResolvedConfig,
     featureFlagProvider,
     getContextForChatMessage,
     hydrateAfterPostMessage,
@@ -77,11 +78,9 @@ import {
 import type { startTokenReceiver } from '../../auth/token-receiver'
 import { getContextFileFromUri } from '../../commands/context/file-path'
 import { getContextFileFromCursor, getContextFileFromSelection } from '../../commands/context/selection'
-import { getConfigWithEndpoint } from '../../configuration'
 import { resolveContextItems } from '../../editor/utils/editor-context'
 import type { VSCodeEditor } from '../../editor/vscode-editor'
 import type { ExtensionClient } from '../../extension-client'
-import type { LocalEmbeddingsController } from '../../local-context/local-embeddings'
 import type { SymfRunner } from '../../local-context/symf'
 import { logDebug } from '../../log'
 import { migrateAndNotifyForOutdatedModels } from '../../models/modelMigrator'
@@ -145,10 +144,7 @@ export interface ChatSession {
 }
 
 export class AuthDependentRetrievers {
-    constructor(
-        private _localEmbeddings: LocalEmbeddingsController | null,
-        private _symf: SymfRunner | null
-    ) {}
+    constructor(private _symf: SymfRunner | null) {}
 
     private isCodyWeb(): boolean {
         return vscode.workspace.getConfiguration().get<string>('cody.advanced.agent.ide') === CodyIDE.Web
@@ -160,10 +156,6 @@ export class AuthDependentRetrievers {
 
     public get allowRemoteContext(): boolean {
         return this.isCodyWeb() || !this.isConsumer()
-    }
-
-    get localEmbeddings(): LocalEmbeddingsController | null {
-        return this.isConsumer() ? this._localEmbeddings : null
     }
 
     get symf(): SymfRunner | null {
@@ -248,9 +240,6 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
         if (TestSupport.instance) {
             TestSupport.instance.chatPanelProvider.set(this)
         }
-
-        // Advise local embeddings to start up if necessary.
-        void this.retrievers.localEmbeddings?.start()
 
         this.disposables.push(
             subscriptionDisposable(
@@ -381,7 +370,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 await handleCodeFromSaveToNewFile(message.text, this.editor)
                 break
             case 'embeddings/index':
-                void this.retrievers.localEmbeddings?.index()
+                await vscode.commands.executeCommand('cody.embeddings.index')
                 break
             case 'show-page':
                 await vscode.commands.executeCommand('cody.show-page', message.page)
@@ -423,7 +412,7 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
                 )
                 break
             case 'auth': {
-                const config = getConfigWithEndpoint()
+                const { configuration: config } = await currentResolvedConfig()
                 if (message.authKind === 'callback' && message.endpoint) {
                     redirectToEndpointLogin(message.endpoint, config.agentIDE)
                     break
@@ -525,25 +514,25 @@ export class ChatController implements vscode.Disposable, vscode.WebviewViewProv
     }
 
     private async getConfigForWebview(): Promise<ConfigurationSubsetForWebview & LocalEnv> {
-        const config = getConfigWithEndpoint()
+        const { configuration, auth } = await currentResolvedConfig()
         const sidebarViewOnly = this.extensionClient.capabilities?.webviewNativeConfig?.view === 'single'
         const isEditorViewType = this.webviewPanelOrView?.viewType === 'cody.editorPanel'
         const webviewType = isEditorViewType && !sidebarViewOnly ? 'editor' : 'sidebar'
         const experimentalOneBox = await this.isOneBoxEnabled()
 
         return {
-            agentIDE: config.agentIDE ?? CodyIDE.VSCode,
-            agentExtensionVersion: config.isRunningInsideAgent
-                ? config.agentExtensionVersion
+            agentIDE: configuration.agentIDE ?? CodyIDE.VSCode,
+            agentExtensionVersion: configuration.isRunningInsideAgent
+                ? configuration.agentExtensionVersion
                 : VSCEVersion,
             uiKindIsWeb: vscode.env.uiKind === vscode.UIKind.Web,
-            serverEndpoint: config.serverEndpoint,
-            experimentalNoodle: config.experimentalNoodle,
+            serverEndpoint: auth.serverEndpoint,
+            experimentalNoodle: configuration.experimentalNoodle,
             smartApply: this.isSmartApplyEnabled(),
             experimentalOneBox,
             webviewType,
             multipleWebviewsEnabled: !sidebarViewOnly,
-            internalDebugContext: config.internalDebugContext,
+            internalDebugContext: configuration.internalDebugContext,
         }
     }
 
@@ -1773,11 +1762,10 @@ export function revealWebviewViewOrPanel(viewOrPanel: vscode.WebviewView | vscod
 }
 
 function getDefaultModelID(): string {
-    const pending = ''
     try {
-        return modelsService.instance!.getDefaultChatModel() || pending
+        return modelsService.instance!.getDefaultChatModel() ?? ''
     } catch {
-        return pending
+        return ''
     }
 }
 

@@ -7,14 +7,13 @@ import {
     type AuthStatus,
     type AuthenticatedAuthStatus,
     type ChatHistoryKey,
-    type ClientConfigurationWithAccessToken,
     type ClientState,
+    type ResolvedConfiguration,
     type UserLocalHistory,
     distinctUntilChanged,
     fromVSCodeEvent,
     startWith,
 } from '@sourcegraph/cody-shared'
-
 import { type Observable, map } from 'observable-fns'
 import { isSourcegraphToken } from '../chat/protocol'
 import { EventEmitter } from '../testutils/mocks'
@@ -142,10 +141,6 @@ class LocalStorage {
                 }
             }
 
-            // Store the current username as the last used username
-            if (authStatus.username) {
-                this.storage.update(this.LAST_USED_USERNAME, authStatus.username)
-            }
             await this.set(this.KEY_LOCAL_HISTORY, fullHistory)
         } catch (error) {
             console.error(error)
@@ -239,11 +234,11 @@ class LocalStorage {
         return false
     }
 
-    public async setConfig(config: ClientConfigurationWithAccessToken): Promise<void> {
+    public async setConfig(config: ResolvedConfiguration): Promise<void> {
         return this.set(this.KEY_CONFIG, config)
     }
 
-    public getConfig(): ClientConfigurationWithAccessToken | null {
+    public getConfig(): ResolvedConfiguration | null {
         return this.get(this.KEY_CONFIG)
     }
 

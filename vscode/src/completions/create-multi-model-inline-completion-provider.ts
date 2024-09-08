@@ -1,8 +1,13 @@
-import { type MultimodelSingleModelConfig, currentAuthStatus, isDotCom } from '@sourcegraph/cody-shared'
-import { cloneDeep } from 'lodash'
+import {
+    type MultimodelSingleModelConfig,
+    authStatus,
+    combineLatest,
+    createDisposables,
+    resolvedConfig,
+} from '@sourcegraph/cody-shared'
+import { type Observable, map } from 'observable-fns'
 import * as vscode from 'vscode'
 import { logDebug } from '../log'
-import { completionProviderConfig } from './completion-provider-config'
 import type { InlineCompletionItemProviderArgs } from './create-inline-completion-item-provider'
 import { InlineCompletionItemProvider } from './inline-completion-item-provider'
 import { createProviderHelper } from './providers/create-provider'
@@ -69,114 +74,104 @@ async function triggerMultiModelAutocompletionsForComparison(
     logDebug('MultiModelAutoComplete:\n', completionsOutput)
 }
 
-export async function createInlineCompletionItemFromMultipleProviders({
-    config,
+/**
+ * Creates multiple providers to get completions from. The primary purpose of this method is to get
+ * the completions generated from multiple providers, which helps judge the quality of code
+ * completions
+ */
+export function createInlineCompletionItemFromMultipleProviders({
     statusBar,
     createBfgRetriever,
-}: InlineCompletionItemProviderArgs): Promise<vscode.Disposable> {
-    // Creates multiple providers to get completions from.
-    // The primary purpose of this method is to get the completions generated from multiple providers,
-    // which helps judge the quality of code completions
-    const authStatus = currentAuthStatus()
-    if (
-        !authStatus.authenticated ||
-        config.autocompleteExperimentalMultiModelCompletions === undefined
-    ) {
-        return {
-            dispose: () => {},
-        }
-    }
-
-    const disposables: vscode.Disposable[] = []
-
-    const multiModelConfigsList: MultimodelSingleModelConfig[] = []
-    for (const currentProviderConfig of config.autocompleteExperimentalMultiModelCompletions) {
-        if (currentProviderConfig.provider && currentProviderConfig.model) {
-            multiModelConfigsList.push({
-                provider: currentProviderConfig.provider,
-                model: currentProviderConfig.model,
-                enableExperimentalFireworksOverrides:
-                    currentProviderConfig.enableExperimentalFireworksOverrides ?? false,
-                context: currentProviderConfig.context,
-            })
-        }
-    }
-
-    if (multiModelConfigsList.length === 0) {
-        return {
-            dispose: () => {},
-        }
-    }
-
-    const allCompletionsProviders: providerConfig[] = []
-    for (const currentProviderConfig of multiModelConfigsList) {
-        const newConfig: typeof config = {
-            ...cloneDeep(config),
-            // Override some config to ensure we are not logging extra events.
-            telemetryLevel: 'off',
-            // We should only override the fireworks "cody.autocomplete.experimental.fireworksOptions" when added in the config.
-            autocompleteExperimentalFireworksOptions:
-                currentProviderConfig.enableExperimentalFireworksOverrides
-                    ? config.autocompleteExperimentalFireworksOptions
-                    : undefined,
-            // Don't use the advanced provider config to get the model
-            autocompleteAdvancedModel: null,
-            autocompleteExperimentalGraphContext: currentProviderConfig.context as
-                | 'lsp-light'
-                | 'bfg'
-                | 'bfg-mixed'
-                | 'tsc'
-                | 'tsc-mixed'
-                | null,
-        }
-
-        // Use the experimental config to get the context provider
-        completionProviderConfig.setConfig(newConfig)
-        const provider = createProviderHelper({
-            authStatus,
-            legacyModel: currentProviderConfig.model,
-            provider: currentProviderConfig.provider,
-            config: newConfig,
-        })
-
-        const triggerDelay = vscode.workspace
-            .getConfiguration()
-            .get<number>('cody.autocomplete.triggerDelay')
-        if (provider) {
-            const completionsProvider = new InlineCompletionItemProvider({
-                provider,
-                config: newConfig,
-                triggerDelay: triggerDelay ?? 0,
-                firstCompletionTimeout: config.autocompleteFirstCompletionTimeout,
-                statusBar,
-                completeSuggestWidgetSelection: config.autocompleteCompleteSuggestWidgetSelection,
-                formatOnAccept: config.autocompleteFormatOnAccept,
-                disableInsideComments: config.autocompleteDisableInsideComments,
-                isRunningInsideAgent: config.isRunningInsideAgent,
-                createBfgRetriever,
-                isDotComUser: isDotCom(authStatus.endpoint || ''),
-                noInlineAccept: true,
-            })
-            allCompletionsProviders.push({
-                providerName: currentProviderConfig.provider,
-                modelName: currentProviderConfig.model,
-                completionsProvider: completionsProvider,
-                contextStrategy: currentProviderConfig.context,
-            })
-        }
-    }
-    completionProviderConfig.setConfig(config)
-    disposables.push(
-        vscode.commands.registerCommand('cody.multi-model-autocomplete.manual-trigger', () =>
-            triggerMultiModelAutocompletionsForComparison(allCompletionsProviders)
-        )
-    )
-
-    return {
-        dispose: () => {
-            for (const disposable of disposables) {
-                disposable.dispose()
+}: InlineCompletionItemProviderArgs): Observable<void> {
+    return combineLatest([resolvedConfig, authStatus]).pipe(
+        createDisposables(([config, authStatus]) => {
+            if (
+                !authStatus.authenticated ||
+                config.configuration.autocompleteExperimentalMultiModelCompletions === undefined
+            ) {
+                return []
             }
-        },
-    }
+
+            const multiModelConfigsList: MultimodelSingleModelConfig[] = []
+            for (const currentProviderConfig of config.configuration
+                .autocompleteExperimentalMultiModelCompletions) {
+                if (currentProviderConfig.provider && currentProviderConfig.model) {
+                    multiModelConfigsList.push({
+                        provider: currentProviderConfig.provider,
+                        model: currentProviderConfig.model,
+                        enableExperimentalFireworksOverrides:
+                            currentProviderConfig.enableExperimentalFireworksOverrides ?? false,
+                        context: currentProviderConfig.context,
+                    })
+                }
+            }
+
+            const allCompletionsProviders: providerConfig[] = []
+            for (const currentProviderConfig of multiModelConfigsList) {
+                const newConfig: typeof config = {
+                    ...config,
+                    configuration: {
+                        ...config.configuration,
+                        // Override some config to ensure we are not logging extra events.
+                        telemetryLevel: 'off',
+                        // We should only override the fireworks "cody.autocomplete.experimental.fireworksOptions" when added in the config.
+                        autocompleteExperimentalFireworksOptions:
+                            currentProviderConfig.enableExperimentalFireworksOverrides
+                                ? config.configuration.autocompleteExperimentalFireworksOptions
+                                : undefined,
+                        // Don't use the advanced provider config to get the model
+                        autocompleteAdvancedModel: null,
+                        autocompleteExperimentalGraphContext: currentProviderConfig.context as
+                            | 'lsp-light'
+                            | 'bfg'
+                            | 'bfg-mixed'
+                            | 'tsc'
+                            | 'tsc-mixed'
+                            | null,
+                    },
+                }
+
+                // Use the experimental config to get the context provider
+                const provider = createProviderHelper({
+                    authStatus,
+                    legacyModel: currentProviderConfig.model,
+                    provider: currentProviderConfig.provider,
+                    config: newConfig,
+                })
+
+                if (provider) {
+                    const triggerDelay =
+                        vscode.workspace
+                            .getConfiguration()
+                            .get<number>('cody.autocomplete.triggerDelay') ?? 0
+                    const completionsProvider = new InlineCompletionItemProvider({
+                        provider,
+                        triggerDelay: triggerDelay ?? 0,
+                        firstCompletionTimeout: config.configuration.autocompleteFirstCompletionTimeout,
+                        statusBar,
+                        completeSuggestWidgetSelection:
+                            config.configuration.autocompleteCompleteSuggestWidgetSelection,
+                        formatOnAccept: config.configuration.autocompleteFormatOnAccept,
+                        disableInsideComments: config.configuration.autocompleteDisableInsideComments,
+                        isRunningInsideAgent: config.configuration.isRunningInsideAgent,
+                        createBfgRetriever,
+                        noInlineAccept: true,
+                    })
+                    allCompletionsProviders.push({
+                        providerName: currentProviderConfig.provider,
+                        modelName: currentProviderConfig.model,
+                        completionsProvider: completionsProvider,
+                        contextStrategy: currentProviderConfig.context,
+                    })
+                }
+            }
+            return [
+                vscode.commands.registerCommand('cody.multi-model-autocomplete.manual-trigger', () =>
+                    triggerMultiModelAutocompletionsForComparison(allCompletionsProviders)
+                ),
+                ...allCompletionsProviders.map(({ completionsProvider }) => completionsProvider),
+            ]
+        }),
+        map(() => undefined)
+    )
 }

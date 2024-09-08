@@ -113,12 +113,6 @@ export enum CodyIDE {
     Eclipse = 'Eclipse',
 }
 
-export type ClientConfigurationWithEndpoint = Omit<ClientConfigurationWithAccessToken, 'accessToken'>
-
-export interface ClientConfigurationWithAccessToken
-    extends ReadonlyDeep<RawClientConfiguration>,
-        AuthCredentials {}
-
 export interface OllamaOptions {
     /**
      * URL to the Ollama server.

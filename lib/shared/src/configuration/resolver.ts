@@ -1,9 +1,5 @@
 import { Observable, map } from 'observable-fns'
-import type {
-    AuthCredentials,
-    ClientConfiguration,
-    ClientConfigurationWithAccessToken,
-} from '../configuration'
+import type { AuthCredentials, ClientConfiguration } from '../configuration'
 import { logError } from '../logger'
 import { distinctUntilChanged, firstValueFrom, fromLateSetSource, shareReplay } from '../misc/observable'
 import { DOTCOM_URL } from '../sourcegraph-api/environments'
@@ -13,7 +9,7 @@ import type { PartialDeep, ReadonlyDeep } from '../utils'
  * The input from various sources that is needed to compute the {@link ResolvedConfiguration}.
  */
 export interface ConfigurationInput {
-    clientConfiguration: ClientConfigurationWithAccessToken
+    clientConfiguration: ClientConfiguration
     clientSecrets: ClientSecrets
     clientState: ClientState
 }
@@ -68,15 +64,13 @@ async function resolveConfiguration(input: ConfigurationInput): Promise<Resolved
     // We must not throw here, because that would result in the `resolvedConfig` observable
     // terminating and all callers receiving no further config updates.
     const accessToken =
-        (input.clientConfiguration.accessToken ||
-            (await input.clientSecrets.getToken(serverEndpoint).catch(error => {
-                logError(
-                    'resolveConfiguration',
-                    `Failed to get access token for endpoint ${serverEndpoint}: ${error}`
-                )
-                return null
-            }))) ??
-        null
+        (await input.clientSecrets.getToken(serverEndpoint).catch(error => {
+            logError(
+                'resolveConfiguration',
+                `Failed to get access token for endpoint ${serverEndpoint}: ${error}`
+            )
+            return null
+        })) ?? null
     return {
         configuration: input.clientConfiguration,
         clientState: input.clientState,
@@ -135,20 +129,6 @@ export function setStaticResolvedConfigurationValue(input: ResolvedConfiguration
 export const resolvedConfig: Observable<ResolvedConfiguration> = _resolvedConfig.observable.pipe(
     shareReplay()
 )
-
-/**
- * @deprecated Use {@link resolvedConfig} instead.
- */
-export const resolvedConfigWithAccessToken: Observable<ClientConfigurationWithAccessToken> =
-    resolvedConfig.pipe(
-        map(
-            config =>
-                ({
-                    ...config.configuration,
-                    ...config.auth,
-                }) satisfies ClientConfigurationWithAccessToken
-        )
-    )
 
 /**
  * The current resolved configuration. Callers should use {@link resolvedConfig} instead so that

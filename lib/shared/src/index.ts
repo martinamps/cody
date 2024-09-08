@@ -1,6 +1,12 @@
 // Add anything else here that needs to be used outside of this library.
 
-export { Model, modelsService, type ServerModel, type ServerModelConfiguration } from './models'
+export {
+    Model,
+    ModelsService,
+    modelsService,
+    type ServerModel,
+    type ServerModelConfiguration,
+} from './models'
 export {
     type EditModel,
     type EditProvider,
@@ -192,7 +198,6 @@ export { SourcegraphBrowserCompletionsClient } from './sourcegraph-api/completio
 export { SourcegraphCompletionsClient } from './sourcegraph-api/completions/client'
 export type {
     CompletionLogger,
-    CompletionsClientConfig,
     CompletionRequestParameters,
 } from './sourcegraph-api/completions/client'
 export * from './sourcegraph-api/completions/types'

@@ -10,6 +10,7 @@ import {
     addTraceparent,
     contextFiltersProvider,
     createSSEIterator,
+    currentAuthStatusAuthed,
     getActiveTraceAndSpanId,
     isAbortError,
     isNodeResponse,
@@ -26,14 +27,14 @@ import { logDebug } from '../log'
 import { createRateLimitErrorFromResponse } from './default-client'
 import type { GenerateCompletionsOptions } from './providers/provider'
 
-interface FastPathParams extends Pick<GenerateCompletionsOptions, 'authStatus'> {
+interface FastPathParams {
     isLocalInstance: boolean
     fireworksConfig: ExperimentalFireworksConfig | undefined
     logger: CompletionLogger | undefined
     providerOptions: GenerateCompletionsOptions
     fastPathAccessToken: string | undefined
-    customHeaders: Record<string, string>
-    anonymousUserID: string | undefined
+    customHeaders: Record<string, string> // TODO!(sqs): read from config
+    anonymousUserID: string | undefined // TODO!(sqs): read from clientState
 }
 
 // When using the fast path, the Cody client talks directly to Cody Gateway. Since CG only
@@ -46,19 +47,16 @@ interface FastPathParams extends Pick<GenerateCompletionsOptions, 'authStatus'> 
 export function createFastPathClient(
     requestParams: CodeCompletionsParams,
     abortController: AbortController,
-    params: FastPathParams
-): CompletionResponseGenerator {
-    const {
+    {
         isLocalInstance,
         fireworksConfig,
         logger,
         providerOptions,
         anonymousUserID,
-        authStatus,
         fastPathAccessToken,
         customHeaders,
-    } = params
-
+    }: FastPathParams
+): CompletionResponseGenerator {
     const gatewayUrl = isLocalInstance ? 'http://localhost:9992' : 'https://cody-gateway.sourcegraph.com'
     const url = fireworksConfig ? fireworksConfig.url : `${gatewayUrl}/v1/completions/fireworks`
     const log = logger?.startCompletion(requestParams, url)
@@ -117,7 +115,7 @@ export function createFastPathClient(
         // identical to the SG instance response but does not contain information on whether a user
         // is eligible to upgrade to the pro plan. We get this from the authState instead.
         if (response.status === 429) {
-            const upgradeIsAvailable = !!authStatus.userCanUpgrade
+            const upgradeIsAvailable = !!currentAuthStatusAuthed().userCanUpgrade
 
             throw recordErrorToSpan(
                 span,

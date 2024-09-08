@@ -6,7 +6,6 @@ import {
     type AuthStatus,
     DOTCOM_URL,
     FeatureFlag,
-    type GraphQLAPIClientConfig,
     type SourcegraphGraphQLAPIClient,
     authStatus,
     featureFlagProvider,
@@ -52,13 +51,13 @@ describe('Cody Pro expiration notifications', () => {
             Promise.resolve(enabledFeatureFlags.has(flag))
         )
         vi.spyOn(featureFlagProvider, 'refresh').mockImplementation(() => Promise.resolve())
-        graphqlClient.setConfig({} as unknown as GraphQLAPIClientConfig)
-        apiClient = {
-            getCurrentUserCodySubscription: () => ({
-                status: codyStatus,
-                plan: codyPlan,
-            }),
-        } as unknown as SourcegraphGraphQLAPIClient
+        vi.spyOn(graphqlClient, 'getCurrentUserCodySubscription').mockResolvedValue({
+            status: codyStatus,
+            plan: codyPlan,
+            applyProRateLimits: false,
+            currentPeriodEndAt: new Date(2022, 1, 1),
+            currentPeriodStartAt: new Date(2021, 1, 1),
+        })
         vi.spyOn(authStatus, 'subscribe').mockImplementation((f: any): any => {
             authChangeListener = f
             // (return an object that simulates the unsubscribe

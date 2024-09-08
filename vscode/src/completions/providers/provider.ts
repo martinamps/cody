@@ -3,7 +3,6 @@ import type { Position, TextDocument } from 'vscode'
 import {
     type AuthenticatedAuthStatus,
     type AutocompleteContextSnippet,
-    type ClientConfigurationWithAccessToken,
     type CodeCompletionsClient,
     type CompletionParameters,
     type DocumentContext,
@@ -53,14 +52,6 @@ export interface GenerateCompletionsOptions {
      */
     gitContext?: GitContext
     maxContextTokens?: number
-
-    authStatus: Pick<
-        AuthenticatedAuthStatus,
-        'userCanUpgrade' | 'endpoint' | 'isFireworksTracingEnabled'
-    >
-
-    // TODO: eliminate by using config watcher
-    config: ClientConfigurationWithAccessToken
 }
 
 const DEFAULT_MAX_CONTEXT_TOKENS = 2048
@@ -88,9 +79,7 @@ export type ProviderOptions = (ProviderModelOptions | ProviderLegacyModelOptions
 export type ProviderFactoryParams = {
     model?: Model
     legacyModel?: string
-    config: ClientConfigurationWithAccessToken
-    // TODO: eliminate by using a singleton instead.
-    authStatus: AuthenticatedAuthStatus
+    authStatus: AuthenticatedAuthStatus // TODO!(sqs): make this observable
     anonymousUserID: string
     mayUseOnDeviceInference?: boolean
     provider: string
@@ -157,7 +146,7 @@ export abstract class Provider {
         abortSignal: AbortSignal,
         snippets: AutocompleteContextSnippet[],
         tracer?: CompletionProviderTracer
-    ): AsyncGenerator<FetchCompletionResult[]>
+    ): AsyncGenerator<FetchCompletionResult[]> | Promise<AsyncGenerator<FetchCompletionResult[]>>
 }
 
 /**

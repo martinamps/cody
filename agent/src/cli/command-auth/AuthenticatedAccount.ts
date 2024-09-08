@@ -37,9 +37,14 @@ export class AuthenticatedAccount {
         options: AuthenticationOptions,
         source: AuthenticationSource
     ): Promise<AuthenticatedAccount | Error> {
-        const graphqlClient = new SourcegraphGraphQLAPIClient({
-            accessToken: options.accessToken,
-            serverEndpoint: options.endpoint,
+        const graphqlClient = SourcegraphGraphQLAPIClient.withStaticConfig({
+            auth: {
+                accessToken: options.accessToken,
+                serverEndpoint: options.endpoint,
+            },
+            configuration: {
+                customHeaders: {},
+            },
         })
         const userInfo = await graphqlClient.getCurrentUserInfo()
         if (isError(userInfo)) {

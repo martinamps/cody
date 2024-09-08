@@ -101,8 +101,8 @@ describe('RequestManager', () => {
         suffix?: string
     ) => Promise<RequestManagerResult>
     let checkCache: (prefix: string, suffix?: string) => RequestManagerResult | null
-    beforeEach(async () => {
-        await initCompletionProviderConfig({})
+    beforeEach(() => {
+        initCompletionProviderConfig({})
         const requestManager = new RequestManager()
 
         createRequest = (prefix: string, provider: Provider, suffix?: string) => {
@@ -111,8 +111,6 @@ describe('RequestManager', () => {
             return requestManager.request({
                 requestParams: docState(prefix, suffix),
                 providerOptions: {
-                    authStatus: {} as any,
-                    config: {} as any,
                     docContext,
                     document,
                     position,

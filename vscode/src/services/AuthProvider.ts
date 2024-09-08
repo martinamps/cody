@@ -1,24 +1,27 @@
 import * as vscode from 'vscode'
 
 import {
+    type AuthCredentials,
     type AuthStatus,
     ClientConfigSingleton,
-    type ClientConfigurationWithAccessToken,
     CodyIDE,
+    DOTCOM_URL,
     SourcegraphGraphQLAPIClient,
+    type Unsubscribable,
     currentResolvedConfig,
-    graphqlClient,
+    dependentAbortController,
+    isAbortError,
     isDotCom,
     isError,
     isNetworkLikeError,
     logError,
+    resolvedConfig,
     setAuthStatusObservable,
     telemetryRecorder,
 } from '@sourcegraph/cody-shared'
 import { Subject } from 'observable-fns'
 import { formatURL } from '../auth/auth'
 import { newAuthStatus } from '../chat/utils'
-import { getFullConfig } from '../configuration'
 import { logDebug } from '../log'
 import { syncModels } from '../models/sync'
 import { maybeStartInteractiveTutorial } from '../tutorial/helpers'
@@ -28,44 +31,54 @@ import { secretStorage } from './SecretStorageProvider'
 const HAS_AUTHENTICATED_BEFORE_KEY = 'has-authenticated-before'
 
 export class AuthProvider implements vscode.Disposable {
-    private client: SourcegraphGraphQLAPIClient | null = null
     private status = new Subject<AuthStatus>()
+    private configSubscription: Unsubscribable
 
     constructor() {
         setAuthStatusObservable(this.status)
+
+        // TODO!(sqs): figure out what endpointHistory is used for here
+        // this.loadEndpointHistory()
+
+        let firstAuth = true
+        this.configSubscription = resolvedConfig.subscribe(async ({ clientState }) => {
+            if (!firstAuth) {
+                return
+            }
+            firstAuth = false
+
+            const lastEndpoint = clientState.lastUsedEndpoint ?? DOTCOM_URL.toString()
+
+            // Attempt to auth with the last-used credentials.
+            const token = await secretStorage.get(lastEndpoint || '')
+            logDebug(
+                'AuthProvider:init:lastEndpoint',
+                token?.trim() ? 'Token recovered from secretStorage' : 'No token found in secretStorage',
+                lastEndpoint
+            )
+
+            await this.auth({
+                endpoint: lastEndpoint,
+                token: token || null,
+                isExtensionStartup: true,
+            }).catch(error => logError('AuthProvider:init:failed', lastEndpoint, { verbose: error }))
+        })
     }
 
-    public dispose(): void {}
-
-    // Sign into the last endpoint the user was signed into, if any
-    public async init(): Promise<void> {
-        const { auth } = await currentResolvedConfig()
-        const lastEndpoint = localStorage?.getEndpoint() || auth.serverEndpoint
-        const token = (await secretStorage.get(lastEndpoint || '')) || auth.accessToken
-        logDebug(
-            'AuthProvider:init:lastEndpoint',
-            token?.trim() ? 'Token recovered from secretStorage' : 'No token found in secretStorage',
-            lastEndpoint
-        )
-
-        await this.auth({
-            endpoint: lastEndpoint,
-            token: token || null,
-            isExtensionStartup: true,
-        }).catch(error => logError('AuthProvider:init:failed', lastEndpoint, { verbose: error }))
+    public dispose(): void {
+        this.configSubscription.unsubscribe()
     }
 
     // Create Auth Status
     private async makeAuthStatus(
-        config: Pick<
-            ClientConfigurationWithAccessToken,
-            'serverEndpoint' | 'accessToken' | 'customHeaders'
-        >
+        credentials: AuthCredentials,
+        signal: AbortSignal
     ): Promise<AuthStatus> {
-        const endpoint = config.serverEndpoint
-        const token = config.accessToken
-        const isCodyWeb =
-            vscode.workspace.getConfiguration().get<string>('cody.advanced.agent.ide') === CodyIDE.Web
+        const endpoint = credentials.serverEndpoint
+        const token = credentials.accessToken
+
+        const { configuration } = await currentResolvedConfig()
+        const isCodyWeb = configuration.agentIDE === CodyIDE.Web
 
         // Cody Web can work without access token since authorization flow
         // relies on cookie authentication
@@ -79,15 +92,19 @@ export class AuthProvider implements vscode.Disposable {
             }
         }
 
-        this.client = new SourcegraphGraphQLAPIClient(config)
+        // Check if credentials are valid and if Cody is enabled for the credentials and endpoint.
+        //
+        // TODO!(sqs): pass customHeaders into here bc they are needed for auth
+        const client = SourcegraphGraphQLAPIClient.withStaticConfig({ auth: credentials })
 
         // Version is for frontend to check if Cody is not enabled due to unsupported version when siteHasCodyEnabled is false
         const [{ enabled: siteHasCodyEnabled, version: siteVersion }, codyLLMConfiguration, userInfo] =
             await Promise.all([
-                this.client.isCodyEnabled(),
-                this.client.getCodyLLMConfiguration(),
-                this.client.getCurrentUserInfo(),
+                client.isCodyEnabled(signal),
+                client.getCodyLLMConfiguration(signal),
+                client.getCurrentUserInfo(signal),
             ])
+        signal.throwIfAborted()
 
         logDebug('CodyLLMConfiguration', JSON.stringify(codyLLMConfiguration))
         // check first if it's a network error
@@ -120,7 +137,7 @@ export class AuthProvider implements vscode.Disposable {
 
         // Configure AuthStatus for DotCom users
 
-        const proStatus = await this.client.getCurrentUserCodySubscription()
+        const proStatus = await client.getCurrentUserCodySubscription()
         // Pro user without the pending status is the valid pro users
         const isActiveProUser =
             proStatus !== null &&
@@ -130,14 +147,15 @@ export class AuthProvider implements vscode.Disposable {
 
         return newAuthStatus({
             ...userInfo,
+            authenticated: true,
             endpoint,
             siteVersion,
             configOverwrites,
-            authenticated: !!userInfo.id,
             userCanUpgrade: !isActiveProUser,
-            primaryEmail: userInfo.primaryEmail?.email ?? '',
         })
     }
+
+    private inflightAuth: AbortController | null = null
 
     // It processes the authentication steps and stores the login info before sharing the auth status with chatview
     public async auth({
@@ -145,55 +163,74 @@ export class AuthProvider implements vscode.Disposable {
         token,
         customHeaders,
         isExtensionStartup = false,
+        signal,
     }: {
         endpoint: string
         token: string | null
         customHeaders?: Record<string, string> | null
         isExtensionStartup?: boolean
+        signal?: AbortSignal
     }): Promise<AuthStatus> {
+        if (this.inflightAuth) {
+            this.inflightAuth.abort()
+        }
+        const abortController = dependentAbortController(signal)
+        this.inflightAuth = abortController
+
         const formattedEndpoint = formatURL(endpoint)
         if (!formattedEndpoint) {
             throw new Error(`invalid endpoint URL: ${JSON.stringify(endpoint)}`)
         }
 
-        const { configuration } = await currentResolvedConfig()
-        const config = {
+        const credentials: AuthCredentials = {
             serverEndpoint: formattedEndpoint,
             accessToken: token,
-            customHeaders: customHeaders || configuration.customHeaders,
         }
 
         try {
-            const authStatus = await this.makeAuthStatus(config)
+            const authStatus = await this.makeAuthStatus(credentials, abortController.signal)
+            abortController.signal.throwIfAborted()
 
-            await this.storeAuthInfo(config.serverEndpoint, config.accessToken)
+            await this.storeAuthInfo(credentials)
+            abortController.signal.throwIfAborted()
 
             await vscode.commands.executeCommand(
                 'setContext',
                 'cody.activated',
                 authStatus.authenticated
             )
+            abortController.signal.throwIfAborted()
 
-            await this.updateAuthStatus(authStatus)
+            await this.updateAuthStatus(authStatus, abortController.signal)
+            abortController.signal.throwIfAborted()
 
             // If the extension is authenticated on startup, it can't be a user's first
             // ever authentication. We store this to prevent logging first-ever events
             // for already existing users.
             if (isExtensionStartup && authStatus.authenticated) {
                 await this.setHasAuthenticatedBefore()
+                abortController.signal.throwIfAborted()
             } else if (authStatus.authenticated) {
                 this.handleFirstEverAuthentication()
             }
 
             return authStatus
         } catch (error) {
-            logDebug('AuthProvider:auth', 'failed', error)
+            if (isAbortError(error)) {
+                throw error
+            }
 
-            // Try to reload auth status in case of network error, else return default auth status
-            return await this.reloadAuthStatus().catch(() => ({
+            logDebug('AuthProvider:auth', 'failed', error)
+            // TODO!(sqs): handle the kind of error this is
+            return {
+                endpoint,
                 authenticated: false,
-                endpoint: config.serverEndpoint,
-            }))
+                showInvalidAccessTokenError: true,
+            }
+        } finally {
+            if (this.inflightAuth === abortController) {
+                this.inflightAuth = null
+            }
         }
     }
 
@@ -209,45 +246,46 @@ export class AuthProvider implements vscode.Disposable {
         })
     }
 
-    private async updateAuthStatus(authStatus: AuthStatus): Promise<void> {
+    private async updateAuthStatus(authStatus: AuthStatus, signal: AbortSignal): Promise<void> {
         try {
-            // We update the graphqlClient and ModelsService first
-            // because many listeners rely on these
-            graphqlClient.setConfig(await getFullConfig())
-            await ClientConfigSingleton.getInstance().setAuthStatus(authStatus)
+            await ClientConfigSingleton.getInstance().setAuthStatus(authStatus, signal)
             await syncModels(authStatus)
         } catch (error) {
-            logDebug('AuthProvider', 'updateAuthStatus error', error)
-        } finally {
-            this.status.next(authStatus)
-            let eventValue: 'disconnected' | 'connected' | 'failed'
-            if (authStatus.authenticated) {
-                eventValue = 'connected'
-            } else if (authStatus.showNetworkError || authStatus.showInvalidAccessTokenError) {
-                eventValue = 'failed'
-            } else {
-                eventValue = 'disconnected'
+            if (!isAbortError(error)) {
+                logDebug('AuthProvider', 'updateAuthStatus error', error)
             }
-            telemetryRecorder.recordEvent('cody.auth', eventValue, {
-                billingMetadata: {
-                    product: 'cody',
-                    category: 'billable',
-                },
-            })
+        } finally {
+            if (!signal.aborted) {
+                this.status.next(authStatus)
+                let eventValue: 'disconnected' | 'connected' | 'failed'
+                if (
+                    !authStatus.authenticated &&
+                    (authStatus.showNetworkError || authStatus.showInvalidAccessTokenError)
+                ) {
+                    eventValue = 'failed'
+                } else if (authStatus.authenticated) {
+                    eventValue = 'connected'
+                } else {
+                    eventValue = 'disconnected'
+                }
+                telemetryRecorder.recordEvent('cody.auth', eventValue, {
+                    billingMetadata: {
+                        product: 'cody',
+                        category: 'billable',
+                    },
+                })
+            }
         }
     }
 
     // Store endpoint in local storage, token in secret storage, and update endpoint history.
-    private async storeAuthInfo(
-        endpoint: string | null | undefined,
-        token: string | null | undefined
-    ): Promise<void> {
-        if (!endpoint) {
+    private async storeAuthInfo(credentials: AuthCredentials): Promise<void> {
+        if (!credentials.serverEndpoint) {
             return
         }
-        await localStorage.saveEndpoint(endpoint)
-        if (token) {
-            await secretStorage.storeToken(endpoint, token)
+        await localStorage.saveEndpoint(credentials.serverEndpoint)
+        if (credentials.accessToken) {
+            await secretStorage.storeToken(credentials.serverEndpoint, credentials.accessToken)
         }
     }
 

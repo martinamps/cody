@@ -11,6 +11,7 @@ import {
 } from '@sourcegraph/cody-shared'
 
 import { telemetryRecorder } from '@sourcegraph/cody-shared'
+import { Observable } from 'observable-fns'
 import { localStorage } from '../services/LocalStorageProvider'
 import { DEFAULT_VSCODE_SETTINGS } from '../testutils/mocks'
 import { withPosixPaths } from '../testutils/textDocument'
@@ -33,7 +34,7 @@ const DUMMY_CONTEXT: vscode.InlineCompletionContext = {
     triggerKind: vscode.InlineCompletionTriggerKind.Automatic,
 }
 
-graphqlClient.setConfig({} as unknown as GraphQLAPIClientConfig)
+graphqlClient.setResolvedConfigurationObservable(Observable.of({} as unknown as GraphQLAPIClientConfig)) // TODO!(sqs)
 
 class MockableInlineCompletionItemProvider extends InlineCompletionItemProvider {
     constructor(
@@ -48,8 +49,9 @@ class MockableInlineCompletionItemProvider extends InlineCompletionItemProvider 
             statusBar: null as any,
             provider: createProvider({
                 authStatus: AUTH_STATUS_FIXTURE_AUTHED,
-            } as any),
-            config: {} as any,
+                anonymousUserID: 'a',
+                provider: 'my-provider',
+            }),
             firstCompletionTimeout:
                 superArgs?.firstCompletionTimeout ??
                 DEFAULT_VSCODE_SETTINGS.autocompleteFirstCompletionTimeout,
@@ -62,8 +64,8 @@ class MockableInlineCompletionItemProvider extends InlineCompletionItemProvider 
 }
 
 describe('InlineCompletionItemProvider', () => {
-    beforeAll(async () => {
-        await initCompletionProviderConfig({})
+    beforeAll(() => {
+        initCompletionProviderConfig({})
 
         // Dummy noop implementation of localStorage.
         localStorage.setStorage({

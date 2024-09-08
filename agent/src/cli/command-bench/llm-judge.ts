@@ -1,4 +1,9 @@
-import type { PromptString } from '@sourcegraph/cody-shared'
+import {
+    type PromptString,
+    type ResolvedConfiguration,
+    setStaticResolvedConfigurationValue,
+} from '@sourcegraph/cody-shared'
+import type { PartialDeep } from '@sourcegraph/cody-shared/src/utils'
 import { SourcegraphNodeCompletionsClient } from '../../../../vscode/src/completions/nodeClient'
 import type { CodyBenchOptions } from './command-bench'
 
@@ -11,11 +16,15 @@ export interface LlmJudgeScore {
 export class LlmJudge {
     client: SourcegraphNodeCompletionsClient
     constructor(options: Pick<CodyBenchOptions, 'srcAccessToken' | 'srcEndpoint'>) {
-        this.client = new SourcegraphNodeCompletionsClient({
-            serverEndpoint: options.srcEndpoint,
-            accessToken: options.srcAccessToken,
-            customHeaders: {},
-        })
+        const partialConfig: PartialDeep<ResolvedConfiguration> = {
+            auth: {
+                serverEndpoint: options.srcEndpoint,
+                accessToken: options.srcAccessToken,
+            },
+        }
+        // HACK(sqs): assumes that no other configuration values are accessed
+        setStaticResolvedConfigurationValue(partialConfig as ResolvedConfiguration)
+        this.client = new SourcegraphNodeCompletionsClient()
     }
 
     public async judge(prompt: PromptString): Promise<LlmJudgeScore> {

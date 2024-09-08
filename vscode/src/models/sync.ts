@@ -9,6 +9,8 @@ import {
     getDotComDefaultModels,
     isDotCom,
     modelsService,
+    resolvedConfig,
+    subscriptionDisposable,
 } from '@sourcegraph/cody-shared'
 import type { ServerModel, ServerModelConfiguration } from '@sourcegraph/cody-shared/src/models'
 import { ModelTag } from '@sourcegraph/cody-shared/src/models/tags'
@@ -51,7 +53,6 @@ export async function syncModels(authStatus: AuthStatus): Promise<void> {
             // a world where LLM models are managed server-side. However, this is how Cody can be extended
             // to use locally running LLMs such as Ollama. (Though some more testing is needed.)
             // See: https://sourcegraph.com/blog/local-code-completion-with-ollama-and-cody
-            registerModelsFromVSCodeConfiguration()
             return
         }
     }
@@ -60,7 +61,6 @@ export async function syncModels(authStatus: AuthStatus): Promise<void> {
     // (Only some of them may not be available if you are on the Cody Free plan.)
     if (isDotCom(authStatus)) {
         modelsService.instance!.setModels(getDotComDefaultModels())
-        registerModelsFromVSCodeConfiguration()
         return
     }
 
@@ -111,33 +111,38 @@ interface ChatModelProviderConfig {
  * NOTE: DotCom Connections only as model options are not available for Enterprise
  * BUG: This does NOT make any model changes based on the "cody.dev.useServerDefinedModels".
  *
- * @returns An array of `Model` instances for the configured chat models.
+ * TODO!(sqs): ensure this is not being clobbered when config changes
  */
-export function registerModelsFromVSCodeConfiguration() {
-    const codyConfig = vscode.workspace.getConfiguration('cody')
-    const modelsConfig = codyConfig?.get<ChatModelProviderConfig[]>('dev.models')
-    if (!modelsConfig?.length) {
-        return
-    }
+export function registerModelsFromVSCodeConfiguration(): vscode.Disposable {
+    return subscriptionDisposable(
+        resolvedConfig.subscribe(() => {
+            const modelsConfig = vscode.workspace
+                .getConfiguration('cody')
+                .get<ChatModelProviderConfig[]>('dev.models')
+            if (!modelsConfig?.length) {
+                return
+            }
 
-    modelsService.instance!.addModels(
-        modelsConfig.map(
-            m =>
-                new Model({
-                    id: `${m.provider}/${m.model}`,
-                    usage: [ModelUsage.Chat, ModelUsage.Edit],
-                    contextWindow: {
-                        input: m.inputTokens ?? CHAT_INPUT_TOKEN_BUDGET,
-                        output: m.outputTokens ?? ANSWER_TOKENS,
-                    },
-                    clientSideConfig: {
-                        apiKey: m.apiKey,
-                        apiEndpoint: m.apiEndpoint,
-                        options: m.options,
-                    },
-                    tags: [ModelTag.Local, ModelTag.BYOK, ModelTag.Experimental],
-                })
-        )
+            modelsService.instance!.addModels(
+                modelsConfig.map(
+                    m =>
+                        new Model({
+                            id: `${m.provider}/${m.model}`,
+                            usage: [ModelUsage.Chat, ModelUsage.Edit],
+                            contextWindow: {
+                                input: m.inputTokens ?? CHAT_INPUT_TOKEN_BUDGET,
+                                output: m.outputTokens ?? ANSWER_TOKENS,
+                            },
+                            clientSideConfig: {
+                                apiKey: m.apiKey,
+                                apiEndpoint: m.apiEndpoint,
+                                options: m.options,
+                            },
+                            tags: [ModelTag.Local, ModelTag.BYOK, ModelTag.Experimental],
+                        })
+                )
+            )
+        })
     )
 }
 

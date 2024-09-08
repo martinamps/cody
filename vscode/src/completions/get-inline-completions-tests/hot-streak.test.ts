@@ -36,7 +36,7 @@ describe('[getInlineCompletions] hot streak', () => {
                 `,
             {
                 configuration: {
-                    autocompleteAdvancedProvider: 'fireworks',
+                    configuration: { autocompleteAdvancedProvider: 'fireworks' },
                 },
                 delayBetweenChunks: 50,
             }
@@ -70,7 +70,7 @@ describe('[getInlineCompletions] hot streak', () => {
                 }`,
                 {
                     configuration: {
-                        autocompleteAdvancedProvider: 'fireworks',
+                        configuration: { autocompleteAdvancedProvider: 'fireworks' },
                     },
                     delayBetweenChunks: 50,
                 }
@@ -192,7 +192,7 @@ describe('[getInlineCompletions] hot streak', () => {
                 {
                     delayBetweenChunks: 20,
                     configuration: {
-                        autocompleteFirstCompletionTimeout: 10,
+                        configuration: { autocompleteFirstCompletionTimeout: 10 },
                     },
                     abortSignal: new AbortController().signal,
                     onNetworkRequest(_, requestManagerAbortController) {

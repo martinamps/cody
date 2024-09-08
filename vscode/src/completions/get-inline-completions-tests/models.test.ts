@@ -15,8 +15,10 @@ describe('[getInlineCompletions] models', () => {
                 },
                 triggerKind,
                 configuration: {
-                    autocompleteAdvancedProvider: 'fireworks',
-                    autocompleteAdvancedModel: 'starcoder-hybrid',
+                    configuration: {
+                        autocompleteAdvancedProvider: 'fireworks',
+                        autocompleteAdvancedModel: 'starcoder-hybrid',
+                    },
                 },
             })
         }

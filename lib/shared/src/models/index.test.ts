@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { AUTH_STATUS_FIXTURE_AUTHED, type AuthenticatedAuthStatus } from '../auth/types'
+import { CodyIDE } from '../configuration'
+import { mockResolvedConfig } from '../configuration/resolver'
 import {
     Model,
     type ModelCategory,
@@ -31,13 +33,26 @@ describe('Model Provider', () => {
     const enterpriseAuthStatus: AuthenticatedAuthStatus = {
         ...AUTH_STATUS_FIXTURE_AUTHED,
         endpoint: 'https://sourcegraph.example.com',
-        authenticated: true,
     }
 
+    const MOCK_STORAGE: ConstructorParameters<typeof ModelsService>[0] = {
+        get: () => null,
+        set: () => Promise.resolve(undefined),
+        delete: () => Promise.resolve(undefined),
+    }
+
+    beforeAll(() => {
+        mockResolvedConfig({
+            configuration: { agentIDE: CodyIDE.VSCode },
+            auth: { serverEndpoint: 'https://example.com' },
+            clientState: {},
+        })
+    })
+
     // Reset service
-    let modelsService = new ModelsService()
+    let modelsService = new ModelsService(MOCK_STORAGE)
     beforeEach(() => {
-        modelsService = new ModelsService()
+        modelsService = new ModelsService(MOCK_STORAGE)
     })
 
     describe('getContextWindowByID', () => {
@@ -253,7 +268,7 @@ describe('Model Provider', () => {
 
         beforeEach(async () => {
             storage = new TestStorage()
-            modelsService.setStorage(storage)
+            modelsService = new ModelsService(storage)
             modelsService.setAuthStatus(enterpriseAuthStatus)
             await modelsService.setServerSentModels(SERVER_MODELS)
         })
