@@ -18,6 +18,11 @@ describe('await getArtificialDelay', () => {
         featureFlagProvider.instance = {
             evaluateFeatureFlag: (flag: FeatureFlag) => Promise.resolve(enabledFeatureFlags.has(flag)),
             refresh: () => {},
+            getFromCache: (flagName: FeatureFlag) => {
+                // raise errors 
+                throw new Error('Unreachable code: getFromCache should not be called here unless it is called from the mocked out evaluateFeatureFlag')
+                return false
+            }
         } as FeatureFlagProvider
     })
 
