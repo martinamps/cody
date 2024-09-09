@@ -212,7 +212,9 @@ export function getConfigWithEndpoint(): Omit<ClientConfigurationWithAccessToken
     const config = getConfiguration()
     const isTesting = process.env.CODY_TESTING === 'true'
     const serverEndpoint =
-        localStorage?.getEndpoint() || (isTesting ? 'http://localhost:49300/' : DOTCOM_URL.href)
+        vscode.workspace.getConfiguration().get<string>('cody.serverEndpoint') ||
+        localStorage?.getEndpoint() ||
+        (isTesting ? 'http://localhost:49300/' : DOTCOM_URL.href)
     return { ...config, serverEndpoint }
 }
 
