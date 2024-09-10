@@ -48,11 +48,11 @@ export async function getArtificialDelay(
     languageId: string,
     completionIntent?: CompletionIntent
 ): Promise<number> {
-    const codyDisableArtificialDelay = await featureFlagProvider.instance!.evaluateFeatureFlag(
-        FeatureFlag.CodyDisableArtificialDelay
+    const CodyAutocompleteDisableArtificialDelay = await featureFlagProvider.instance!.evaluateFeatureFlag(
+        FeatureFlag.CodyAutocompleteDisableArtificialDelay
     )
 
-    if (codyDisableArtificialDelay) {
+    if (CodyAutocompleteDisableArtificialDelay) {
         return 0
     }
     let baseline = 0

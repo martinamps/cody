@@ -35,7 +35,7 @@ describe('await getArtificialDelay', () => {
 
     it('returns no artificial delay when CodyAutocompleteTracing feature flag is enabled', async () => {
         const uri = 'file://foo/bar/test.css'
-        enabledFeatureFlags.add(FeatureFlag.CodyDisableArtificialDelay)
+        enabledFeatureFlags.add(FeatureFlag.CodyAutocompleteDisableArtificialDelay)
 
         // css is a low performance language
         const languageId = 'css'
