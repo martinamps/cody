@@ -19,6 +19,7 @@ class CompletionProviderConfig {
         FeatureFlag.CodyAutocompleteContextExperimentVariant3,
         FeatureFlag.CodyAutocompleteContextExperimentVariant4,
         FeatureFlag.CodyAutocompleteContextExperimentControl,
+        FeatureFlag.CodyAutocompleteDisableArtificialDelay,
     ] as const
 
     private get config() {
@@ -160,6 +161,10 @@ class CompletionProviderConfig {
             default:
                 return 0
         }
+    }
+
+    public get autocompleteEnableAritificialDelay(): boolean {
+        return this.getPrefetchedFlag(FeatureFlag.CodyAutocompleteDisableArtificialDelay)
     }
 }
 

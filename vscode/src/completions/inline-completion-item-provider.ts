@@ -414,11 +414,14 @@ export class InlineCompletionItemProvider
                     FeatureFlag.CodyAutocompleteUserLatency
                 ),
             }
-
-            const artificialDelay = await getArtificialDelay(
+            const CodyAutocompleteDisableArtificialDelay = completionProviderConfig.getPrefetchedFlag(
+                FeatureFlag.CodyAutocompleteDisableArtificialDelay
+            )
+            const artificialDelay = getArtificialDelay(
                 latencyFeatureFlags,
                 document.uri.toString(),
                 document.languageId,
+                CodyAutocompleteDisableArtificialDelay,
                 completionIntent
             )
 

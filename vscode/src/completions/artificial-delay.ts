@@ -1,4 +1,3 @@
-import { FeatureFlag, featureFlagProvider } from '@sourcegraph/cody-shared'
 import { logDebug } from '../log'
 import type { CompletionIntent } from '../tree-sitter/queries'
 export interface LatencyFeatureFlags {
@@ -42,16 +41,13 @@ let userMetrics = {
 // Adjust the minimum latency based on user actions and env Start when the last 5 suggestions were
 // not accepted Increment latency by 200ms linearly up to max latency Reset every 5 minutes, or on
 // file change, or on accepting a suggestion
-export async function getArtificialDelay(
+export function getArtificialDelay(
     featureFlags: LatencyFeatureFlags,
     uri: string,
     languageId: string,
+    CodyAutocompleteDisableArtificialDelay: boolean,
     completionIntent?: CompletionIntent
-): Promise<number> {
-    const CodyAutocompleteDisableArtificialDelay = await featureFlagProvider.instance!.evaluateFeatureFlag(
-        FeatureFlag.CodyAutocompleteDisableArtificialDelay
-    )
-
+): number {
     if (CodyAutocompleteDisableArtificialDelay) {
         return 0
     }
