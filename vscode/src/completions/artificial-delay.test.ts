@@ -182,7 +182,7 @@ describe('getArtificialDelay', () => {
         expect(getArtificialDelay(featureFlags, newUri, languageId, false)).toBe(0)
         // Latency will not reset before 5 minutes
         vi.advanceTimersByTime(3 * 60 * 1000)
-        expect(getArtificialDelay(featureFlags, newUri, languageId,false )).toBe(50)
+        expect(getArtificialDelay(featureFlags, newUri, languageId, false)).toBe(50)
         // reset latency on accepted suggestion
         resetArtificialDelay()
         expect(getArtificialDelay(featureFlags, newUri, languageId, false)).toBe(0)
@@ -205,12 +205,12 @@ describe('getArtificialDelay', () => {
         expect(lowPerformanceLanguageIds.has(languageId)).toBe(false)
 
         // latency should only change based on language id when only the language flag is enabled
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
-        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId,false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
+        expect(getArtificialDelay(featureFlagsLangOnly, uri, lowPerformLanguageId, false)).toBe(1000)
         // latency back to 0 when language is no longer low-performance
         expect(getArtificialDelay(featureFlagsLangOnly, goUri, languageId, false)).toBe(0)
     })
