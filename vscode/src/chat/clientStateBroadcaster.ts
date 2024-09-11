@@ -7,6 +7,7 @@ import {
     authStatus,
     combineLatest,
     contextFiltersProvider,
+    currentResolvedConfig,
     displayLineRange,
     displayPathBasename,
     expandToLineRange,
@@ -136,6 +137,7 @@ export async function getCorpusContextItemsForEditorState(useRemote: boolean): P
     // remote search). There should be a single internal thing in Cody that lets you monitor the
     // user's current codebase.
     if (useRemote && workspaceReposMonitor) {
+        const { auth } = await currentResolvedConfig()
         const repoMetadata = await workspaceReposMonitor.getRepoMetadata()
         for (const repo of repoMetadata) {
             if (await contextFiltersProvider.isRepoNameIgnored(repo.repoName)) {
@@ -152,7 +154,8 @@ export async function getCorpusContextItemsForEditorState(useRemote: boolean): P
                             name: repo.repoName,
                             url: repo.repoName,
                         },
-                        REMOTE_REPOSITORY_PROVIDER_URI
+                        REMOTE_REPOSITORY_PROVIDER_URI,
+                        auth
                     )
                 ),
                 title: 'Current Repository',
