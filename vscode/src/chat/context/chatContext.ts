@@ -51,7 +51,7 @@ export function getMentionMenuData(
 
     const scopedTelemetryRecorder: GetContextItemsTelemetry = {
         empty: () => {
-            telemetryRecorder.recordEvent('cody.at-mention', 'executed', {
+            telemetryRecorder.recordEvent('cody.at-mention', 'selected', {
                 metadata: {
                     source: atMentionSourceTelemetryMetadataMapping[source],
                 },
