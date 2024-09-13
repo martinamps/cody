@@ -414,16 +414,17 @@ export class InlineCompletionItemProvider
                     FeatureFlag.CodyAutocompleteUserLatency
                 ),
             }
-            const CodyAutocompleteDisableArtificialDelay = completionProviderConfig.getPrefetchedFlag(
-                FeatureFlag.CodyAutocompleteDisableArtificialDelay
+            const codyAutocompleteDisableArtificialDelay = completionProviderConfig.getPrefetchedFlag(
+                FeatureFlag.codyAutocompleteDisableArtificialDelay
             )
-            const artificialDelay = getArtificialDelay(
-                latencyFeatureFlags,
-                document.uri.toString(),
-                document.languageId,
-                CodyAutocompleteDisableArtificialDelay,
-                completionIntent
-            )
+            const params = {
+                featureFlags: latencyFeatureFlags,
+                uri: document.uri.toString(),
+                languageId: document.languageId,
+                codyAutocompleteDisableArtificialDelay: codyAutocompleteDisableArtificialDelay,
+                completionIntent: completionIntent,
+            }
+            const artificialDelay = getArtificialDelay({ ...params })
 
             const debounceInterval = this.config.provider.mayUseOnDeviceInference ? 125 : 75
             stageRecorder.record('preGetInlineCompletions')

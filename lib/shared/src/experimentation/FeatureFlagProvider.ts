@@ -30,7 +30,7 @@ export enum FeatureFlag {
     CodyAutocompleteFIMModelExperimentVariant2 = 'cody-autocomplete-fim-model-experiment-variant-2-v2',
     CodyAutocompleteFIMModelExperimentVariant3 = 'cody-autocomplete-fim-model-experiment-variant-3-v2',
     CodyAutocompleteFIMModelExperimentVariant4 = 'cody-autocomplete-fim-model-experiment-variant-4-v2',
-    CodyAutocompleteDisableArtificialDelay = 'cody-autocomplete-disable-artificial-delay',
+    codyAutocompleteDisableArtificialDelay = 'cody-autocomplete-disable-artificial-delay',
     // Enables Claude 3 if the user is in our holdout group
     CodyAutocompleteClaude3 = 'cody-autocomplete-claude-3',
     // Enable latency adjustments based on accept/reject streaks

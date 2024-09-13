@@ -41,14 +41,16 @@ let userMetrics = {
 // Adjust the minimum latency based on user actions and env Start when the last 5 suggestions were
 // not accepted Increment latency by 200ms linearly up to max latency Reset every 5 minutes, or on
 // file change, or on accepting a suggestion
-export function getArtificialDelay(
-    featureFlags: LatencyFeatureFlags,
-    uri: string,
-    languageId: string,
-    CodyAutocompleteDisableArtificialDelay: boolean,
+export function getArtificialDelay(params: {
+    featureFlags: LatencyFeatureFlags
+    uri: string
+    languageId: string
+    codyAutocompleteDisableArtificialDelay: boolean
     completionIntent?: CompletionIntent
-): number {
-    if (CodyAutocompleteDisableArtificialDelay) {
+}): number {
+    const { featureFlags, uri, languageId, codyAutocompleteDisableArtificialDelay, completionIntent } =
+        params
+    if (codyAutocompleteDisableArtificialDelay) {
         return 0
     }
     let baseline = 0
