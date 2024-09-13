@@ -26,7 +26,7 @@ import { getEnterpriseContextWindow } from './utils'
  * or fallback to the limit from the authentication status if not configured.
  */
 export async function syncModels(authStatus: AuthStatus): Promise<void> {
-    // Offline mode only support Ollama models, which would be synced seperately.
+    // Offline mode only support Ollama models, which would be synced separately.
     modelsService.instance!.setAuthStatus(authStatus)
     if (authStatus.authenticated && authStatus.isOfflineMode) {
         modelsService.instance!.setModels([])
